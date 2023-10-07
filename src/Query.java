@@ -34,6 +34,9 @@ public class Query {
         analyzeQueryResults();
     }
 
+    /**
+     * Loads the invertedIndex to the invertedIndex DS by reading from the IndexFiles in memory.
+     */
     private static void loadInvertedIndex(){
         File indexDir = new File(indexPath);
         File[] listOfFiles = indexDir.listFiles((d, name) -> name.startsWith(indexFilesPrefix));
@@ -69,7 +72,9 @@ public class Query {
 
     }
 
-
+    /**
+     * Analyzes and gets the results of the query we introduced in relation to our txt files.
+     */
     private static void analyzeQueryResults(){
         int querySize = wordsToQuery.length;
 
@@ -106,6 +111,10 @@ public class Query {
 
     }
 
+    /**
+     * Obtains each work that form the query and introduces it in to an array.
+     * @param args
+     */
     private static void getWordsToQuery(String[] args){
         wordsToQuery = new String[args.length - 2];
         for (int i = 0; i < wordsToQuery.length; i++){
@@ -113,12 +122,19 @@ public class Query {
         }
     }
 
+    /**
+     * Simply prints correct usage.
+     */
     private static void printUsage(){
         System.err.println("Error in parameters. At least two arguments are needed.");
         System.err.println("Usage: Query <word1> [<word2> ... <wordN>] <Index_Directory>");
         System.exit(1);
     }
 
+    /**
+     * Simply returns the full path of a file given its identifier in FileIds.txt file.
+     * @param id
+     */
     private static String getNameOfFile(String id){
         File fileIds = new File(indexPath + File.separator + "FileIds.txt");
         try {
@@ -140,6 +156,11 @@ public class Query {
         return "";
     }
 
+    /**
+     * Simply returns the content of a line given a file identifier and a line number.
+     * @param fileId
+     * @param lineNumber
+     */
     private static String getLine(String fileId, String lineNumber){
         String fileToOpenPath = getNameOfFile(fileId);
         try {

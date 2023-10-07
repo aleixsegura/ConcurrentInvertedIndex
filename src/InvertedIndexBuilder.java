@@ -20,6 +20,10 @@ public class InvertedIndexBuilder implements Runnable {
         localInvertedIndex = new HashMap<>();
     }
 
+    /**
+     * For each word in each entry of the localMap we build the inverted index checking if the location is already in
+     * the local inverted index or not. Then we add the localInvertedIndex to the globalInvertedIndex.
+     */
     @Override
     public void run() {
         for (Map.Entry<Location, String> entry : localFileLinesMap.entrySet()) {

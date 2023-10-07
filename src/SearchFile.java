@@ -10,6 +10,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class SearchFile implements Runnable {
+    public static Indexing app;
     static final AtomicLong readFiles = new AtomicLong(0);
     private static final AtomicLong mapIndex = new AtomicLong(0);
     private final File file;
@@ -20,6 +21,10 @@ public class SearchFile implements Runnable {
         this.txtFilesPaths = new ConcurrentLinkedQueue<>();
     }
 
+    /**
+     * If the file given is a txt file saves it and if it's a directory processes it recursively in
+     * addToTxtFiles function.
+     */
     @Override
     public void run() {
         if (file.isFile() && isTxtFile(file)) {
@@ -31,6 +36,10 @@ public class SearchFile implements Runnable {
     }
 
 
+    /**
+     * Recursively searches txt files.
+     * @param file
+     */
     private void addToTxtFiles(File file) {
         if (file.isDirectory()) {
             File[] files = file.listFiles();
@@ -47,25 +56,35 @@ public class SearchFile implements Runnable {
         }
     }
 
-    private static boolean isTxtFile(File f) {
-        return f.getName().endsWith("txt");
+    /**
+     * Simply returns if a file is a txt file or not.
+     * @param file
+     */
+    private static boolean isTxtFile(File file) {
+        return file.getName().endsWith("txt");
     }
 
-
+    /**
+     * Adds in a synchronized way the txt the identifiers and the full paths of the txt files encountered by the
+     * thread.
+     * @param txtFilesPaths
+     */
     private static void addToGlobalMap(ConcurrentLinkedQueue<String> txtFilesPaths) {
         long key;
-        synchronized (Indexing.filesIdsMap) {
+        synchronized (app.getFilesIdsMap()) {
             while (!txtFilesPaths.isEmpty()) {
                 key = mapIndex.incrementAndGet();
                 String value = txtFilesPaths.poll();
                 assert value != null;
-                Indexing.filesIdsMap.put(key, value);
-
+                app.getFilesIdsMap().put(key, value);
             }
         }
     }
 
-    public static AtomicLong getReadFiles(){ return readFiles; }
-
+    /**
+     * Simply return the amount of txt files.
+     * @return
+     */
+    public static AtomicLong getReadFiles() { return readFiles;}
 }
 

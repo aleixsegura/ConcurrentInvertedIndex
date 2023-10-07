@@ -7,8 +7,11 @@ Grau Informàtica
 --------------------------------------------------------------- */
 import java.io.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReadFile implements Runnable {
+    public static Indexing app;
+    private static final AtomicInteger localMapsRead = new AtomicInteger();
     private final Long fileId;
     private final File fileToRead;
     private final ConcurrentHashMap<Location, String> filesLinesContent;
@@ -19,6 +22,9 @@ public class ReadFile implements Runnable {
         filesLinesContent = new ConcurrentHashMap<>();
     }
 
+    /**
+     * Simply adds the local fileLinesContent map to global fileLines.
+     */
     @Override
     public void run(){
         try (BufferedReader br = new BufferedReader(new FileReader(fileToRead))){
@@ -30,12 +36,18 @@ public class ReadFile implements Runnable {
                 lineNumber++;
             }
 
-            synchronized (Indexing.fileLines){ // add to global DS
-                Indexing.fileLines.putAll(filesLinesContent);
+            synchronized (app.getFileLines()){ // add to global DS
+                app.getFileLines().putAll(filesLinesContent);
             }
+            localMapsRead.incrementAndGet();
         } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
     }
+
+    /**
+     * Simply returns the amount of localMaps read.
+     */
+    public static AtomicInteger getLocalMapsRead() { return localMapsRead; }
 }

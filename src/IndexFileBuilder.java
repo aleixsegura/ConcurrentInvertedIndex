@@ -23,6 +23,9 @@ public class IndexFileBuilder implements Runnable {
         this.partInvertedIndex = partInvertedIndex;
     }
 
+    /**
+     * Writes part of the invertedIndex DS to a IndexFile txt.
+     */
     @Override
     public void run() {
         try (BufferedWriter bw =
