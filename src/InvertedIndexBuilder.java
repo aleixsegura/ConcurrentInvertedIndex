@@ -38,8 +38,8 @@ public class InvertedIndexBuilder implements Runnable {
                 word = word.toLowerCase();
                 word = word.replaceAll("[^a-zA-Z0-9]", "");
 
-                localInvertedIndex.merge(word, locationsBuilder.toString(), (existing, newLocations) ->
-                        existing.contains(toStringLocation) ? existing : newLocations + " " + existing);
+                localInvertedIndex.merge(word, locationsBuilder.toString(), (existing, newLocation) ->
+                        existing.contains(toStringLocation) ? existing : newLocation + " " + existing);
 
             }
         }
