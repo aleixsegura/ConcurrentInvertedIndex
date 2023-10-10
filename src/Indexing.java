@@ -9,7 +9,6 @@ import java.io.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,19 +27,17 @@ public class Indexing {
     private final ConcurrentHashMap<Long, String> filesIdsMap = new ConcurrentHashMap<>(); // filesIds Data Structure
     private final ConcurrentHashMap<Location, String> fileLines = new ConcurrentHashMap<>(); // fileLines Data Structure
     private final ArrayList<ConcurrentHashMap<Location, String>> sameSizeFileLines = new ArrayList<>(); // Rescaled in order to force each virtual thread does the same work.
+
+    private final ArrayList<ConcurrentHashMap<String, String>> unsortedInvertedIndex = new ArrayList<>();
     private ConcurrentHashMap<String, ArrayList<String>> invertedIndex = new ConcurrentHashMap<>(); // invertedIndex Data Structure
 
-    private Thread[] searchFilesVirtualThreads;
-    private Thread[] linesContentVirtualThreads;
-    private Thread[] invertedIndexBuilders;
     private Thread fileIdSaver;
+    private Thread fileFinder;
+    private Thread[] linesContentVirtualThreads;
+    private ReadFile[] readFilesTasks;
+    private Thread[] invertedIndexBuilders;
+    private InvertedIndexBuilder[] invertedIndexTasks;
     private Thread[] indexFilesBuilders;
-
-    public Indexing(String inputDirPath, String indexDirPath, int virtualThreadFactor) {
-        this.inputDirPath = inputDirPath;
-        this.indexDirPath = indexDirPath;
-        this.virtualThreadFactor = virtualThreadFactor;
-    }
 
     public Indexing(String inputDirPath) {
         this.inputDirPath = inputDirPath;
@@ -52,6 +49,12 @@ public class Indexing {
         this.inputDirPath = inputDirPath;
         this.indexDirPath = indexDirPath;
         this.virtualThreadFactor = DEFAULT_VIRTUAL_THREAD_FACTOR;
+    }
+
+    public Indexing(String inputDirPath, String indexDirPath, int virtualThreadFactor) {
+        this.inputDirPath = inputDirPath;
+        this.indexDirPath = indexDirPath;
+        this.virtualThreadFactor = virtualThreadFactor;
     }
 
     public static void setApp(Indexing app) { Indexing.app = app; }
@@ -70,22 +73,25 @@ public class Indexing {
         Instant start = Instant.now();
 
         app.searchTxtFiles(app.inputDirPath);
-        app.joinThreads(app.searchFilesVirtualThreads);
+        app.joinThread(app.fileFinder);
         app.saveFileIds();
 
         app.buildFileLinesContent();
         app.joinThreads(app.linesContentVirtualThreads);
-        app.constructFileLinesContent();
+        app.addToGlobalLinesContent();
 
+        app.constructFileLinesContent();
         app.constructSameSizeFileLines();
 
         app.constructInvertedIndex();
         app.joinThreads(app.invertedIndexBuilders);
+        app.addToGlobalUnsortedInvertedIndex();
         app.invertedIndex = app.sortGlobalInvertedIndex();
 
         app.generateInvertedIndexFiles();
         app.joinThreads(app.indexFilesBuilders);
         app.joinThread(app.fileIdSaver);
+
         Instant end = Instant.now();
         System.out.println("Time to build the Inverted Index: " +
                 Duration.between(start, end).toMillis() + " milliseconds.");
@@ -98,13 +104,9 @@ public class Indexing {
     public ConcurrentHashMap<Location, String> getFileLines() { return fileLines; }
     public ArrayList<ConcurrentHashMap<Location, String>> getSameSizeFileLines() { return sameSizeFileLines;}
     public ConcurrentHashMap<String, ArrayList<String>> getInvertedIndex() { return invertedIndex; }
-
-    public Thread[] getSearchFilesVirtualThreads() { return searchFilesVirtualThreads; }
-
+    public Thread getFileFinder() { return fileFinder; }
     public Thread[] getIndexFilesBuilders() { return indexFilesBuilders; }
-
     public Thread[] getInvertedIndexBuilders() { return invertedIndexBuilders; }
-
     public Thread[] getLinesContentVirtualThreads() { return linesContentVirtualThreads; }
 
     /**
@@ -131,8 +133,11 @@ public class Indexing {
             String filename = commonFileName + "_" + id++;
             List<Map.Entry<String, ArrayList<String>>> partInvertedIndex = new ArrayList<>
                     (invertedIndex.entrySet()).subList(beginIndex, endIndex);
-
-            indexFilesBuilders[i] = Thread.startVirtualThread(new IndexFileBuilder(directoryPath, filename, partInvertedIndex));
+            try{
+                indexFilesBuilders[i] = Thread.startVirtualThread(new IndexFileBuilder(directoryPath, filename, partInvertedIndex));
+            } catch (OutOfMemoryError e){
+                cancel(e);
+            }
         }
     }
 
@@ -143,7 +148,7 @@ public class Indexing {
     public ConcurrentHashMap<String, ArrayList<String>> sortGlobalInvertedIndex() {
         ConcurrentHashMap<String, ArrayList<String>> invertedIndex = new ConcurrentHashMap<>();
 
-        for (HashMap<String, String> map : InvertedIndexBuilder.globalInvertedIndex) { // iterate each map
+        for (ConcurrentHashMap<String, String> map : unsortedInvertedIndex) { // iterate each map
             for (Map.Entry<String, String> entry : map.entrySet()) {
                 String word = entry.getKey();
                 String locations = entry.getValue();
@@ -192,11 +197,25 @@ public class Indexing {
      */
     public void constructInvertedIndex() {
         invertedIndexBuilders = new Thread[filesIdsMap.size() * app.virtualThreadFactor];
-
-        int i = 0;
+        invertedIndexTasks = new InvertedIndexBuilder[filesIdsMap.size() * app.virtualThreadFactor];
+        int i = 0, j = 0;
         for (ConcurrentHashMap<Location, String> map : sameSizeFileLines) {
-            invertedIndexBuilders[i++] = Thread.startVirtualThread(new InvertedIndexBuilder(map));
+            InvertedIndexBuilder currentTask = new InvertedIndexBuilder(map);
+            invertedIndexTasks[i++] = currentTask;
+            try{
+                invertedIndexBuilders[j++] = Thread.startVirtualThread(currentTask);
+            } catch (OutOfMemoryError e){
+                cancel(e);
+            }
         }
+    }
+
+    /**
+     * Adds local tasks DS to global DS.
+     */
+    public void addToGlobalUnsortedInvertedIndex(){
+        for (InvertedIndexBuilder task: invertedIndexTasks)
+            unsortedInvertedIndex.add(task.getLocalInvertedIndex());
     }
 
     /**
@@ -251,10 +270,11 @@ public class Indexing {
         File[] files = inputFile.listFiles();
 
         if (files != null) {
-            searchFilesVirtualThreads = new Thread[files.length];
-            SearchFile.app = app;
-            for (int i = 0; i < searchFilesVirtualThreads.length; i++) {
-                searchFilesVirtualThreads[i] = Thread.startVirtualThread(new SearchFile(files[i]));
+            SearchFiles.app = app;
+            try{
+                fileFinder = Thread.startVirtualThread(new SearchFiles(files));
+            } catch (OutOfMemoryError e){
+                cancel(e);
             }
         }
     }
@@ -264,15 +284,30 @@ public class Indexing {
      */
     public void buildFileLinesContent() {
         linesContentVirtualThreads = new Thread[filesIdsMap.size()];// OJO 2 task
+        readFilesTasks = new ReadFile[filesIdsMap.size()];
         ReadFile.app = app;
-        int i = 0;
+        int i = 0, j = 0;
         for (Map.Entry<Long, String> entry : filesIdsMap.entrySet()) {
             Long fileId = entry.getKey();
             String fullPath = entry.getValue();
-            linesContentVirtualThreads[i++] = Thread.startVirtualThread(new ReadFile(fileId, new File(fullPath))); // 2 task
+            ReadFile currentTask = new ReadFile(fileId, new File(fullPath));
+            readFilesTasks[i++] = currentTask;
+            try {
+                linesContentVirtualThreads[j++] = Thread.startVirtualThread(currentTask); // 2 task
+            } catch (OutOfMemoryError e){
+                cancel(e);
+            }
         }
     }
 
+    /**
+     * Adds local tasks DS to global DS.
+     */
+    public void addToGlobalLinesContent(){
+        for (ReadFile task: readFilesTasks){
+            fileLines.putAll(task.getLocalFilesLinesContent());
+        }
+    }
 
     /**
      * Starts a virtual thread which runs the task of saving the full path of the .txt files and it's id.
@@ -280,7 +315,11 @@ public class Indexing {
     public void saveFileIds() {
         SaveFileIds.app = app;
         SaveFileIds.appIndexDir = app.indexDirPath;
-        fileIdSaver = Thread.startVirtualThread(new SaveFileIds());
+        try{
+            fileIdSaver = Thread.startVirtualThread(new SaveFileIds());
+        } catch (OutOfMemoryError e){
+            cancel(e);
+        }
     }
 
     /**
@@ -319,7 +358,6 @@ public class Indexing {
 
     /**
      * Joins threads that are executing a common task.
-     *
      * @throws InterruptedException
      */
     public void joinThreads(Thread[] threads) throws InterruptedException {
@@ -330,5 +368,10 @@ public class Indexing {
                 e.printStackTrace();
             }
         }
+    }
+
+    private static void cancel(OutOfMemoryError e){
+        e.printStackTrace();
+        System.exit(1);
     }
 }

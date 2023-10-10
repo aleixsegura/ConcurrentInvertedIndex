@@ -6,18 +6,16 @@ Grau Informàtica
 21161168H - Aniol Serrano Ortega.
 --------------------------------------------------------------- */
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class InvertedIndexBuilder implements Runnable {
+public class InvertedIndexBuilder implements Runnable{
     private final ConcurrentHashMap<Location, String> localFileLinesMap;
-    private final HashMap<String, String> localInvertedIndex;
-    static final ArrayList<HashMap<String, String>> globalInvertedIndex = new ArrayList<>();
+    private final ConcurrentHashMap<String, String> localInvertedIndex;
 
     public InvertedIndexBuilder(ConcurrentHashMap<Location, String> localFileLinesMap) {
         this.localFileLinesMap = localFileLinesMap;
-        localInvertedIndex = new HashMap<>();
+        localInvertedIndex = new ConcurrentHashMap<>();
     }
 
     /**
@@ -43,15 +41,7 @@ public class InvertedIndexBuilder implements Runnable {
 
             }
         }
-        synchronized (globalInvertedIndex){
-            globalInvertedIndex.add(localInvertedIndex);
-        }
     }
 
+    public ConcurrentHashMap<String, String> getLocalInvertedIndex(){ return localInvertedIndex; }
 }
-
-
-
-
-
-
