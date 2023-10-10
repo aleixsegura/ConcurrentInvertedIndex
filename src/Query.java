@@ -8,8 +8,8 @@ Grau Informàtica
 
 
 import java.io.*;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class Query {
     private static final String ANSI_RESET = "\u001B[0m";
@@ -20,8 +20,8 @@ public class Query {
     private static final String indexFilesPrefix = "IndexFile_";
     private static String[] wordsToQuery;
     private static String indexPath;
-    private static final ConcurrentHashMap<String, Integer> queryMatchings = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, String> invertedIndex = new ConcurrentHashMap<>();
+    private static final HashMap<String, Integer> queryMatchings = new HashMap<>();
+    private static final HashMap<String, String> invertedIndex = new HashMap<>();
 
     public static void main(String[] args) {
         if (args.length < 3)
