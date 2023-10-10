@@ -1,6 +1,6 @@
 /* ---------------------------------------------------------------
 Práctica 1.
-Código fuente: SearchFile.java
+Código fuente: SearchFiles.java
 Grau Informàtica
 48056540H - Aleix Segura Paz.
 21161168H - Aniol Serrano Ortega.
