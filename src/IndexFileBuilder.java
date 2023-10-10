@@ -15,7 +15,7 @@ import java.util.Map;
 public class IndexFileBuilder implements Runnable {
     private final String directoryPath;
     private final String fileName;
-    List<Map.Entry<String, ArrayList<String>>> partInvertedIndex;
+    private final List<Map.Entry<String, ArrayList<String>>> partInvertedIndex;
 
     public IndexFileBuilder(String directoryPath, String fileName, List<Map.Entry<String, ArrayList<String>>> partInvertedIndex){
         this.directoryPath = directoryPath;
