@@ -2,8 +2,8 @@
 Práctica 1.
 Código fuente: Location.java
 Grau Informàtica
-48056540H - Aleix Segura Paz.
-21161168H - Aniol Serrano Ortega.
+Aleix Segura Paz.
+Aniol Serrano Ortega.
 --------------------------------------------------------------- */
 public class Location{
     private final Long fileId;
